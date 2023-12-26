@@ -173,7 +173,18 @@ par(mfrow=c(1,ncol(continuous_data)))
 invisible(lapply(1:ncol(continuous_data), function(i) {
   boxplot(continuous_data[, i], main = names(continuous_data)[i], cex.lab = 1.5)
 }))
+dev.off()
 
+
+par(mfrow=c(1,5))
+
+# Variable analysis between Clusters (MBC)
+boxplot(continuous_data$age, main = "age", ylab = "years")
+boxplot(continuous_data$trestbps, main = "trestbps", ylab = "mmHg")
+boxplot(continuous_data$chol, main = "chol", ylab = "mg/dl")
+boxplot(continuous_data$thalach, main = "thalach", ylab = "beats recorded")
+boxplot(continuous_data$oldpeak, main = "oldpeak", ylab = "distance")
+dev.off()
 
 data_standardized <- as.data.frame(scale(continuous_data))
 
@@ -227,16 +238,23 @@ categorical_data <- datadb[, cat_variables]
 
 ################################# Hopkins statistic ############################
 
-hopkins(data_standardized)
+set.seed("1")
+datainfo <- data.frame("Samples" = nrow(data_standardized),
+                       "Variables" = ncol(data_standardized),
+                       "Hopkins" = round(hopkins(data_standardized), 4),
+                       "Outliers" = nrow(Outliers))
+
+png("data_information.png", height = 70*nrow(datainfo), width = 70*ncol(datainfo))
+grid.table(datainfo)
+dev.off()
 
 ############################# Model-Based Clustering ###########################
-
-set.seed("1111111111")
 
 MBC_list <- list()
 MClust_G_values <- 2:10
 
 for (G in MClust_G_values) {
+  set.seed("1")
   MBC <- Mclust(data_standardized, G)
   MBC_list[[as.character(G)]] <- MBC
 }
@@ -244,6 +262,7 @@ for (G in MClust_G_values) {
 
 # Silhouette score
 silhouette_score_MBC <- function(G){
+  set.seed("1")
   MBC <- Mclust(data_standardized, G)
   ss <- silhouette(MBC$classification, dist(data_standardized))
   mean(ss[, 3])
@@ -280,12 +299,14 @@ kmeans_list <- list()
 kmeans_G_values <- 2:10
 
 for (G in kmeans_G_values) {
+  set.seed("1")
   k <-kmeans(continuous_data, G)
   kmeans_list[[as.character(G)]] <- k
 }
 
 # Silhouette score
 silhouette_score_kmeans <- function(kmeans_G_values){
+  set.seed("1")
   k <-kmeans(continuous_data, kmeans_G_values, nstart = 50)
   ss <- silhouette(k$cluster, dist(continuous_data))
   mean(ss[, 3])
@@ -373,6 +394,7 @@ kamila_list <- list()
 numClust_values <- 2:10
 
 for (numClust in numClust_values) {
+  set.seed("1")
   kamila <- kamila(conVar = data_standardized, 
                              catFactor = categorical_data,
                              numClust = numClust,
@@ -382,7 +404,8 @@ for (numClust in numClust_values) {
 
 
 # Silhouette score
-silhouette_score <- function(K){
+silhouette_score_kamila <- function(K){
+  set.seed("1")
   kamila <- kamila(conVar = data_standardized, 
                    catFactor = categorical_data,
                    numClust = K,
@@ -391,10 +414,9 @@ silhouette_score <- function(K){
   mean(ss[, 3])
 }
 
-K <- 2:10
-avg_sil <- sapply(K, silhouette_score)
-plot(K, type='b', avg_sil, xlab='Number of clusters', ylab='Average Silhouette Scores', frame=FALSE, main="Silhouette Score (Kamila)")
-Max_silhouette_kamila <- max(avg_sil)
+avg_sil_kamila <- sapply(numClust_values, silhouette_score_kamila)
+plot(numClust_values, type='b', avg_sil, xlab='Number of clusters', ylab='Average Silhouette Scores', frame=FALSE, main="Silhouette Score (Kamila)")
+Max_silhouette_kamila <- max(avg_sil_kamila)
 
 # Davies-Bouldin's Index
 DB_Kamila <- index.DB(data_standardized, kamila_list[["2"]]$finalMemb, d=NULL, centrotypes="centroids", p=2, q=2)
@@ -422,20 +444,22 @@ kproto_list <- list()
 Kp <- 2:10
 
 for (protoclust in Kp) {
+  set.seed("1")
   kproto <- kproto(datadb_blind, protoclust, nstart = 5)
   kproto_list[[as.character(protoclust)]] <- kproto
 }
 
 # Silhouette score
-silhouette_score <- function(Kp){
+silhouette_score_kproto <- function(Kp){
+  set.seed("1")
   kproto <- kproto(datadb_blind, Kp, nstart = 5)
   ss <- silhouette(kproto$cluster, dist(datadb_blind))
   mean(ss[, 3])
 }
 
-avg_sil <- sapply(Kp, silhouette_score)
-plot(Kp, type='b', avg_sil, xlab='Number of clusters', ylab='Average Silhouette Scores', frame=FALSE, main="Silhouette Score (k-Prototypes)")
-Max_silhouette_kproto <- max(avg_sil)
+avg_sil_kproto <- sapply(Kp, silhouette_score_kproto)
+plot(Kp, type='b', avg_sil_kproto, xlab='Number of clusters', ylab='Average Silhouette Scores', frame=FALSE, main="Silhouette Score (k-Prototypes)")
+Max_silhouette_kproto <- max(avg_sil_kproto)
 
 # Davies-Bouldin's Index
 DB_Kproto <- index.DB(continuous_data, kproto_list[["2"]]$cluster, d=NULL, centrotypes="centroids", p=2, q=2)
@@ -492,19 +516,20 @@ dev.off()
 par(mfrow=c(1,5))
 
 # Variable analysis between Clusters (MBC)
-boxplot(age ~ MBCcluster, data = continuous_data_hd, main = "age", ylab = "", xlab = "")
-boxplot(trestbps ~ MBCcluster, data = continuous_data_hd, main = "trestbps", ylab = "", xlab = "")
-boxplot(chol ~ MBCcluster, data = continuous_data_hd, main = "chol", ylab = "", xlab = "")
-boxplot(thalach ~ MBCcluster, data = continuous_data_hd, main = "thalach", ylab = "", xlab = "")
-boxplot(oldpeak ~ MBCcluster, data = continuous_data_hd, main = "oldpeak", ylab = "", xlab = "")
+boxplot(age ~ MBCcluster, data = continuous_data_hd, main = "age", ylab = "years", xlab = "")
+boxplot(trestbps ~ MBCcluster, data = continuous_data_hd, main = "trestbps", ylab = "mmHg", xlab = "")
+boxplot(chol ~ MBCcluster, data = continuous_data_hd, main = "chol", ylab = "mg/dl", xlab = "Cluster")
+boxplot(thalach ~ MBCcluster, data = continuous_data_hd, main = "thalach", ylab = "beats recorded", xlab = "")
+boxplot(oldpeak ~ MBCcluster, data = continuous_data_hd, main = "oldpeak", ylab = "distance", xlab = "")
 
 # Variable analysis between Clusters (kmeans)
-boxplot(age ~ Kmeanscluster, data = continuous_data_hd, main = "age", ylab = "", xlab = "")
-boxplot(trestbps ~ Kmeanscluster, data = continuous_data_hd, main = "trestbps", ylab = "", xlab = "")
-boxplot(chol ~ Kmeanscluster, data = continuous_data_hd, main = "chol", ylab = "", xlab = "")
-boxplot(thalach ~ Kmeanscluster, data = continuous_data_hd, main = "thalach", ylab = "", xlab = "")
-boxplot(oldpeak ~ Kmeanscluster, data = continuous_data_hd, main = "oldpeak", ylab = "", xlab = "")
+boxplot(age ~ Kmeanscluster, data = continuous_data_hd, main = "age", ylab = "years", xlab = "")
+boxplot(trestbps ~ Kmeanscluster, data = continuous_data_hd, main = "trestbps", ylab = "mmHg", xlab = "")
+boxplot(chol ~ Kmeanscluster, data = continuous_data_hd, main = "chol", ylab = "mg/dl", xlab = "Cluster")
+boxplot(thalach ~ Kmeanscluster, data = continuous_data_hd, main = "thalach", ylab = "beats recorded", xlab = "")
+boxplot(oldpeak ~ Kmeanscluster, data = continuous_data_hd, main = "oldpeak", ylab = "distance", xlab = "")
 
+dev.off()
 
 ################################# Final table ##################################
 
